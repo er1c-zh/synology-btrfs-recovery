@@ -10,6 +10,7 @@ jobs:
     container: debian:13
     env:
       TARGET_RELEASE: "6.12.107+deb13-amd64"
+      LOCALVERSION: "+deb13-amd64"
     steps:
       - name: Install tools
         run: |
@@ -28,7 +29,7 @@ jobs:
           make olddefconfig
           make prepare
           make scripts
-          echo "kernelrelease=$(make -s kernelrelease)"
+          echo "kernelrelease=$(make -s LOCALVERSION=$LOCALVERSION kernelrelease)"
           echo "module.lds:"
           find . /usr/src/linux-headers-$TARGET_RELEASE -name module.lds -o -name module.lds.S | sort
           cp /usr/src/linux-headers-$TARGET_RELEASE/arch/x86/module.lds scripts/module.lds
@@ -65,7 +66,7 @@ jobs:
       - name: Build
         run: |
           cd kernel
-          make -j"$(nproc)" KBUILD_MODPOST_WARN=1 M=fs/btrfs modules V=1
+          make -j"$(nproc)" LOCALVERSION="$LOCALVERSION" KBUILD_MODPOST_WARN=1 M=fs/btrfs modules V=1
           test -s fs/btrfs/btrfs.ko
       - name: Validate and package
         run: |
@@ -74,7 +75,8 @@ jobs:
           cp patches/synology-btrfs-root-flags.patch artifact/
           modinfo artifact/btrfs.ko > artifact/modinfo.txt
           VERMAGIC="$(modinfo -F vermagic artifact/btrfs.ko)"
-          echo "$VERMAGIC" | grep -F "$TARGET_RELEASE"
+          echo "built vermagic=$VERMAGIC"
+          test "$(printf '%s\n' "$VERMAGIC" | awk '{print $1}')" = "$TARGET_RELEASE"
           {
             echo "target_release=$TARGET_RELEASE"
             echo "kernel_source=6.12.107"
