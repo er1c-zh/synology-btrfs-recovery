@@ -1,0 +1,64 @@
+name: Build recovery Btrfs module
+on:
+  workflow_dispatch:
+  push:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    container: debian:13
+    env:
+      TARGET_RELEASE: "6.12.107+deb13-amd64"
+    steps:
+      - name: Install tools
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends ca-certificates xz-utils patch make gcc bc flex bison libssl-dev libelf-dev dwarves rsync kmod zstd linux-source-6.12 linux-headers-6.12.107+deb13-amd64
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Prepare source
+        run: |
+          tar -C "$GITHUB_WORKSPACE" -xf /usr/src/linux-source-6.12.tar.xz
+          mv linux-source-6.12 kernel
+          test "$(sed -n 's/^SUBLEVEL = //p' kernel/Makefile)" = "107"
+          cp /usr/src/linux-headers-$TARGET_RELEASE/.config kernel/.config
+          cp /usr/src/linux-headers-$TARGET_RELEASE/Module.symvers kernel/Module.symvers
+          cd kernel
+          make olddefconfig
+          make prepare
+          make scripts
+      - name: Apply patch
+        run: |
+          cd kernel
+          patch -p1 < ../patches/synology-btrfs-root-flags.patch
+          grep -n "Synology compatibility" fs/btrfs/tree-checker.c
+      - name: Build
+        run: |
+          cd kernel
+          make -j"$(nproc)" M=fs/btrfs modules
+          test -s fs/btrfs/btrfs.ko
+      - name: Validate and package
+        run: |
+          mkdir artifact
+          cp kernel/fs/btrfs/btrfs.ko artifact/
+          cp patches/synology-btrfs-root-flags.patch artifact/
+          modinfo artifact/btrfs.ko > artifact/modinfo.txt
+          VERMAGIC="$(modinfo -F vermagic artifact/btrfs.ko)"
+          echo "$VERMAGIC" | grep -F "$TARGET_RELEASE"
+          {
+            echo "target_release=$TARGET_RELEASE"
+            echo "kernel_source=6.12.107"
+            echo "compiler=$(gcc --version | head -1)"
+            echo "vermagic=$VERMAGIC"
+            echo "github_sha=$GITHUB_SHA"
+          } > artifact/build-info.txt
+          (cd artifact && sha256sum btrfs.ko synology-btrfs-root-flags.patch modinfo.txt build-info.txt > SHA256SUMS)
+          zstd -19 -k artifact/btrfs.ko
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: btrfs-6.12.107-deb13-amd64
+          path: artifact/
+          if-no-files-found: error
+          retention-days: 30
