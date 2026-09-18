@@ -31,6 +31,8 @@ jobs:
           echo "kernelrelease=$(make -s kernelrelease)"
           echo "module.lds:"
           find . /usr/src/linux-headers-$TARGET_RELEASE -name module.lds -o -name module.lds.S | sort
+          cp /usr/src/linux-headers-$TARGET_RELEASE/arch/x86/module.lds scripts/module.lds
+          test -s scripts/module.lds
       - name: Apply Synology compatibility change
         run: |
           python3 - <<'PY'
