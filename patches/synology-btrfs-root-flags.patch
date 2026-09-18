@@ -1,0 +1,17 @@
+--- a/fs/btrfs/tree-checker.c
++++ b/fs/btrfs/tree-checker.c
+@@ -1249,11 +1249,13 @@ static int check_root_item(struct extent_buffer *leaf, struct btrfs_key *key,
+ 	}
+ 
+ 	/* Flags check */
++	/* Synology compatibility: ignore unknown root flags during recovery. */
++	/*
+ 	if (unlikely(btrfs_root_flags(&ri) & ~valid_root_flags)) {
+ 		generic_err(leaf, slot,
+ 			    "invalid root flags, have 0x%llx expect mask 0x%llx",
+ 			    btrfs_root_flags(&ri), valid_root_flags);
+ 		return -EUCLEAN;
+ 	}
++	*/
+ 	return 0;
+ }
