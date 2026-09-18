@@ -1,7 +1,6 @@
 --- a/fs/btrfs/tree-checker.c
 +++ b/fs/btrfs/tree-checker.c
-@@ -1249,11 +1249,13 @@ static int check_root_item(struct extent_buffer *leaf, struct btrfs_key *key,
- 	}
+@@ -1251,9 +1251,11 @@
  
  	/* Flags check */
 +	/* Synology compatibility: ignore unknown root flags during recovery. */
@@ -13,5 +12,3 @@
  		return -EUCLEAN;
  	}
 +	*/
- 	return 0;
- }
