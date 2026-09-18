@@ -28,11 +28,35 @@ jobs:
           make olddefconfig
           make prepare
           make scripts
-      - name: Apply patch
+      - name: Apply Synology compatibility change
         run: |
-          cd kernel
-          patch -p1 < ../patches/synology-btrfs-root-flags.patch
-          grep -n "Synology compatibility" fs/btrfs/tree-checker.c
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("kernel/fs/btrfs/tree-checker.c")
+          s = p.read_text()
+          old = '''\t/* Flags check */
+          \tif (unlikely(btrfs_root_flags(&ri) & ~valid_root_flags)) {
+          \t\tgeneric_err(leaf, slot,
+          \t\t\t    "invalid root flags, have 0x%llx expect mask 0x%llx",
+          \t\t\t    btrfs_root_flags(&ri), valid_root_flags);
+          \t\treturn -EUCLEAN;
+          \t}'''
+          new = '''\t/* Flags check */
+          \t/* Synology compatibility: ignore unknown root flags during recovery. */
+          \t/*
+          \tif (unlikely(btrfs_root_flags(&ri) & ~valid_root_flags)) {
+          \t\tgeneric_err(leaf, slot,
+          \t\t\t    "invalid root flags, have 0x%llx expect mask 0x%llx",
+          \t\t\t    btrfs_root_flags(&ri), valid_root_flags);
+          \t\treturn -EUCLEAN;
+          \t}
+          \t*/'''
+          if s.count(old) != 1:
+              raise SystemExit("Expected root-flags validation block not found exactly once")
+          p.write_text(s.replace(old, new))
+          PY
+          grep -n -A10 -B2 "Synology compatibility" kernel/fs/btrfs/tree-checker.c
+          git diff --no-index /dev/null kernel/fs/btrfs/tree-checker.c >/tmp/full.diff || true
       - name: Build
         run: |
           cd kernel
