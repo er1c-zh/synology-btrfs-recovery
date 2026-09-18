@@ -24,6 +24,8 @@ jobs:
           test "$(sed -n 's/^SUBLEVEL = //p' kernel/Makefile)" = "107"
           cp /usr/src/linux-headers-$TARGET_RELEASE/.config kernel/.config
           cp /usr/src/linux-headers-$TARGET_RELEASE/Module.symvers kernel/Module.symvers
+          cp /usr/src/linux-headers-$TARGET_RELEASE/scripts/module.lds kernel/scripts/module.lds
+          echo "kernelrelease before build: $(make -s -C kernel kernelrelease)"
           cd kernel
           make olddefconfig
           make prepare
@@ -60,7 +62,7 @@ jobs:
       - name: Build
         run: |
           cd kernel
-          make -j"$(nproc)" M=fs/btrfs modules
+          make -j"$(nproc)" KBUILD_MODPOST_WARN=1 M=fs/btrfs modules V=1
           test -s fs/btrfs/btrfs.ko
       - name: Validate and package
         run: |
